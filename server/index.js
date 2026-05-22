@@ -1,3 +1,6 @@
+// Required for local dev — network proxy intercepts HTTPS and re-signs with its own cert
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
+
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
@@ -10,7 +13,7 @@ if (!process.env.GEMINI_API_KEY) {
 
 const app  = express()
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
+const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' })
 
 app.use(cors({ origin: 'http://localhost:5173' }))
 app.use(express.json())
@@ -33,7 +36,11 @@ Question: ${question}`
     res.json({ answer: result.response.text() })
   } catch (err) {
     console.error('Gemini error:', err.message)
-    res.status(500).json({ error: 'AI request failed. Check your API key and try again.' })
+    const status  = err.status || 500
+    const message = status === 429
+      ? 'Rate limit reached — please wait a moment and try again.'
+      : 'AI request failed. Check your API key and try again.'
+    res.status(status).json({ error: message })
   }
 })
 
