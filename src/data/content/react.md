@@ -1,112 +1,241 @@
 ## JSX & Component Basics
 
-JSX is a syntax extension that lets you write HTML-like markup inside JavaScript. React transforms it into `React.createElement()` calls at build time.
+JSX is a syntax extension that lets you write HTML-like markup inside JavaScript. Babel/Vite transforms it into `React.createElement()` calls at build time.
 
 **JSX rules:**
-- Return a single root element — wrap siblings in `<>...</>` (Fragment)
+- Return a single root element — wrap siblings in `<>...</>` (Fragment) to avoid adding extra DOM nodes
 - Use `className` instead of `class`, `htmlFor` instead of `for`
-- Self-close empty tags: `<img />`, `<br />`
-- Expressions go in `{}`: `<h1>{user.name}</h1>`
-- JavaScript, not HTML — `style` takes an object: `style={{ color: 'red' }}`
+- Self-close empty tags: `<img />`, `<input />`, `<br />`
+- Embed any JavaScript expression in `{}`: `<h1>{user.name.toUpperCase()}</h1>`
+- `style` takes an object, not a string: `style={{ color: 'red', fontSize: 16 }}`
 
 **Function component:**
 ```jsx
-function Greeting({ name, age }) {
+function UserCard({ name, role, avatar }) {
   return (
     <div className="card">
-      <h1>Hello, {name}!</h1>
-      {age >= 18 && <p>You are an adult.</p>}
+      <img src={avatar} alt={name} />
+      <h2>{name}</h2>
+      <p>{role}</p>
     </div>
   )
 }
 ```
 
-**Rendering lists:**
+**Conditional rendering:**
 ```jsx
-const items = ['Apple', 'Banana', 'Cherry']
+// Short-circuit (renders nothing when false)
+{isLoggedIn && <Dashboard />}
 
-<ul>
-  {items.map((item, i) => (
-    <li key={i}>{item}</li>  // key must be unique and stable
-  ))}
-</ul>
+// Ternary
+{isLoggedIn ? <Dashboard /> : <Login />}
+
+// Early return
+if (loading) return <Spinner />
 ```
 
-**Key rule:** `key` props help React identify which items changed. Use a unique, stable ID from your data — not the array index when the list can reorder.
+**Rendering lists — key is required:**
+```jsx
+{users.map(user => (
+  <UserCard key={user.id} name={user.name} role={user.role} />
+))}
+```
+
+Use a stable, unique ID from your data as `key` — not the array index when the list can reorder, filter, or insert items. Wrong keys cause React to misidentify elements and produce bugs.
 
 ## Props & State
 
-**Props** are inputs passed from parent to child — they are read-only inside the child.  
-**State** is local, mutable data managed inside a component that triggers a re-render when it changes.
+**Props** flow down from parent to child — they are read-only inside the child.  
+**State** is local, mutable data owned by a component that triggers a re-render when updated.
 
-**Props:**
+**Passing and receiving props:**
 ```jsx
-// Parent passes props
-<Button label="Submit" disabled={false} onClick={handleClick} />
+// Parent
+<Button label="Submit" variant="primary" onClick={handleSubmit} disabled={loading} />
 
-// Child receives and uses them
-function Button({ label, disabled, onClick }) {
-  return <button disabled={disabled} onClick={onClick}>{label}</button>
+// Child
+function Button({ label, variant = 'default', onClick, disabled }) {
+  return (
+    <button className={`btn btn-${variant}`} onClick={onClick} disabled={disabled}>
+      {label}
+    </button>
+  )
 }
 ```
 
-**Lifting state up** — when two sibling components need to share state, move it to their closest common parent and pass it down as props:
+**Special props:**
+```jsx
+// children — anything between opening and closing tags
+function Card({ children, title }) {
+  return (
+    <div className="card">
+      <h2>{title}</h2>
+      {children}
+    </div>
+  )
+}
+
+// Usage
+<Card title="Profile">
+  <p>Hello world</p>
+</Card>
+```
+
+**Lifting state up** — when siblings need to share state, move it to their nearest common parent:
 ```jsx
 function Parent() {
-  const [count, setCount] = useState(0)
+  const [query, setQuery] = useState('')
   return (
     <>
-      <Display count={count} />
-      <Controls onIncrement={() => setCount(c => c + 1)} />
+      <SearchInput value={query} onChange={setQuery} />
+      <ResultsList query={query} />
     </>
   )
 }
 ```
 
-**Rules of props:**
-- Never mutate props — treat them as read-only
-- Props can be any value: string, number, object, array, function, JSX
-- Use default values: `function Btn({ size = 'md' })`
+**Props vs State decision guide:**
+- Does it come from a parent? → Prop
+- Does it change over time and trigger re-render? → State
+- Can you compute it from existing props/state? → Derived value (no need for state)
 
 ## useState & useEffect Hooks
 
-Hooks let function components use React features. The two most fundamental are `useState` (local state) and `useEffect` (side effects).
-
-**useState:**
+**useState** — declare state in a function component:
 ```jsx
-const [count, setCount] = useState(0)
-
-// Always use the setter — never mutate state directly
-setCount(count + 1)          // direct value
-setCount(prev => prev + 1)   // updater function (safer for async/batched updates)
-
-// Objects — spread to avoid mutating state
-setUser(prev => ({ ...prev, name: 'Alice' }))
+const [count, setCount]   = useState(0)
+const [user,  setUser]    = useState(null)
+const [items, setItems]   = useState([])
+const [form,  setForm]    = useState({ name: '', email: '' })
 ```
 
-**useEffect:**
+**Updater function** — use when new state depends on old state:
+```jsx
+// Safe for batched/async updates
+setCount(prev => prev + 1)
+
+// Updating objects — always spread, never mutate directly
+setForm(prev => ({ ...prev, email: 'new@example.com' }))
+
+// Updating arrays
+setItems(prev => [...prev, newItem])                    // add
+setItems(prev => prev.filter(i => i.id !== targetId))  // remove
+setItems(prev => prev.map(i => i.id === id ? { ...i, done: true } : i)) // update
+```
+
+**useEffect** — sync with the outside world (fetch, subscriptions, timers, DOM):
 ```jsx
 useEffect(() => {
-  // runs after render
-  fetchData().then(setData)
+  // setup
+  const controller = new AbortController()
+  
+  fetch(`/api/users/${id}`, { signal: controller.signal })
+    .then(r => r.json())
+    .then(setUser)
+    .catch(err => { if (err.name !== 'AbortError') setError(err) })
 
-  return () => {
-    // cleanup — runs before next effect and on unmount
-    subscription.unsubscribe()
-  }
-}, [dependency]) // re-runs when dependency changes
+  // cleanup — runs before next effect and on unmount
+  return () => controller.abort()
+}, [id]) // re-run when id changes
 ```
 
-**Dependency array patterns:**
-- `[]` — run once on mount (like `componentDidMount`)
-- `[value]` — run when `value` changes
-- *(omitted)* — run after every render (usually wrong)
+**Dependency array rules:**
+| Array | Behaviour |
+|---|---|
+| `[]` | Run once after first render (mount) |
+| `[a, b]` | Run when `a` or `b` changes |
+| *(omitted)* | Run after every render — almost always wrong |
 
-**Common useEffect uses:** data fetching, subscriptions, timers, DOM manipulation, syncing with external stores.
+**Common mistake — stale closure:**
+```jsx
+// Bug: count is stale inside the interval
+useEffect(() => {
+  const id = setInterval(() => console.log(count), 1000)
+  return () => clearInterval(id)
+}, []) // missing count in deps
+
+// Fix: use updater function or add count to deps
+setCount(prev => prev + 1)
+```
+
+## useRef & useReducer
+
+### useRef
+
+`useRef` returns a mutable object `{ current: value }`. Mutating `.current` does **not** trigger a re-render.
+
+**Two main uses:**
+
+**1. Access a DOM node:**
+```jsx
+function AutoFocusInput() {
+  const inputRef = useRef(null)
+
+  useEffect(() => {
+    inputRef.current.focus()
+  }, [])
+
+  return <input ref={inputRef} placeholder="I auto-focus" />
+}
+```
+
+**2. Store a mutable value that persists across renders (like an instance variable):**
+```jsx
+function Timer() {
+  const [seconds, setSeconds] = useState(0)
+  const intervalRef = useRef(null)
+
+  const start = () => {
+    intervalRef.current = setInterval(() => setSeconds(s => s + 1), 1000)
+  }
+  const stop = () => clearInterval(intervalRef.current)
+
+  return <> <button onClick={start}>Start</button> <button onClick={stop}>Stop</button> </>
+}
+```
+
+### useReducer
+
+`useReducer` is better than `useState` when state has multiple sub-values or the next state depends on complex logic.
+
+```jsx
+const initialState = { count: 0, step: 1 }
+
+function reducer(state, action) {
+  switch (action.type) {
+    case 'increment': return { ...state, count: state.count + state.step }
+    case 'decrement': return { ...state, count: state.count - state.step }
+    case 'setStep':   return { ...state, step: action.payload }
+    case 'reset':     return initialState
+    default:          throw new Error(`Unknown action: ${action.type}`)
+  }
+}
+
+function Counter() {
+  const [state, dispatch] = useReducer(reducer, initialState)
+  return (
+    <>
+      <p>Count: {state.count}</p>
+      <button onClick={() => dispatch({ type: 'increment' })}>+</button>
+      <button onClick={() => dispatch({ type: 'decrement' })}>−</button>
+      <input
+        type="number"
+        value={state.step}
+        onChange={e => dispatch({ type: 'setStep', payload: Number(e.target.value) })}
+      />
+    </>
+  )
+}
+```
+
+**When to prefer `useReducer` over `useState`:**
+- State has 3+ related fields that change together
+- Next state depends on previous in complex ways
+- You want the update logic testable outside the component
 
 ## React Router for Navigation
 
-React Router enables client-side navigation without page reloads. In v7 (used in this project) the core API is `<BrowserRouter>`, `<Routes>`, `<Route>`, and `<Link>`.
+React Router enables client-side navigation without full page reloads. This project uses v7.
 
 **Setup:**
 ```jsx
@@ -115,221 +244,530 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 function App() {
   return (
     <BrowserRouter>
+      <Sidebar />
       <Routes>
-        <Route path="/"        element={<Home />} />
-        <Route path="/about"   element={<About />} />
+        <Route path="/"          element={<Home />} />
+        <Route path="/users"     element={<UserList />} />
         <Route path="/users/:id" element={<UserDetail />} />
-        <Route path="*"        element={<NotFound />} />
+        <Route path="*"          element={<NotFound />} />
       </Routes>
     </BrowserRouter>
   )
 }
 ```
 
-**Navigation:**
+**Navigation components:**
 ```jsx
-import { Link, NavLink, useNavigate, useParams } from 'react-router-dom'
+import { Link, NavLink } from 'react-router-dom'
 
-// Declarative links
-<Link to="/about">About</Link>
-<NavLink to="/about" className={({ isActive }) => isActive ? 'active' : ''}>About</NavLink>
+// Basic link
+<Link to="/users">Users</Link>
+
+// NavLink — adds active class automatically
+<NavLink to="/users" className={({ isActive }) => isActive ? 'nav active' : 'nav'}>
+  Users
+</NavLink>
+```
+
+**Hooks:**
+```jsx
+import { useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom'
 
 // Programmatic navigation
 const navigate = useNavigate()
-navigate('/dashboard')
-navigate(-1)  // go back
+navigate('/dashboard')           // push
+navigate(-1)                     // go back
+navigate('/login', { replace: true }) // replace (no back history)
 
-// Read URL params
-const { id } = useParams()  // from path="/users/:id"
+// Route params — from path="/users/:id"
+const { id } = useParams()
+
+// Query string — /search?q=react&page=2
+const [searchParams, setSearchParams] = useSearchParams()
+const query = searchParams.get('q')
+
+// Current location
+const location = useLocation()  // { pathname, search, hash, state }
 ```
 
-**Nested routes** — render child routes inside a parent layout:
+**Nested routes with layouts:**
 ```jsx
 <Route path="/dashboard" element={<DashboardLayout />}>
-  <Route index element={<Overview />} />
-  <Route path="settings" element={<Settings />} />
+  <Route index       element={<Overview />} />
+  <Route path="stats" element={<Stats />} />
 </Route>
-// DashboardLayout renders <Outlet /> where children appear
+
+// DashboardLayout.jsx — renders children at <Outlet />
+import { Outlet } from 'react-router-dom'
+function DashboardLayout() {
+  return <div><Sidebar /><main><Outlet /></main></div>
+}
+```
+
+**Protected route pattern:**
+```jsx
+function PrivateRoute({ children }) {
+  const { user } = useAuth()
+  return user ? children : <Navigate to="/login" replace />
+}
+
+<Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
 ```
 
 ## Context API
 
-Context provides a way to share data across the component tree without passing props at every level (prop drilling).
+Context lets you share data across the component tree without passing props at every level (avoiding "prop drilling").
 
-**Creating and providing context:**
+**Create → Provide → Consume:**
+
 ```jsx
+// 1. Create
 import { createContext, useContext, useState } from 'react'
+const AuthContext = createContext(null)
 
-const ThemeContext = createContext(null)
+// 2. Custom hook — cleaner consumer API + error guard
+export function useAuth() {
+  const ctx = useContext(AuthContext)
+  if (!ctx) throw new Error('useAuth must be used inside AuthProvider')
+  return ctx
+}
 
-function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState('light')
+// 3. Provider component
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null)
+
+  const login  = async (email, password) => { /* ... */ setUser(data) }
+  const logout = () => setUser(null)
+
   return (
-    <ThemeContext.Provider value={{ theme, setTheme }}>
+    <AuthContext.Provider value={{ user, login, logout }}>
       {children}
-    </ThemeContext.Provider>
+    </AuthContext.Provider>
   )
+}
+
+// 4. Wrap your app
+<AuthProvider><App /></AuthProvider>
+
+// 5. Consume anywhere in the tree
+function NavBar() {
+  const { user, logout } = useAuth()
+  return <button onClick={logout}>{user?.name}</button>
 }
 ```
 
-**Consuming context:**
+**Performance — context re-renders every consumer when value changes:**
 ```jsx
-function ThemeToggle() {
-  const { theme, setTheme } = useContext(ThemeContext)
-  return (
-    <button onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')}>
-      Current: {theme}
-    </button>
-  )
-}
+// Memoize value to avoid unnecessary re-renders
+const value = useMemo(() => ({ user, login, logout }), [user])
+<AuthContext.Provider value={value}>
 ```
 
-**Wrap your app (or a subtree):**
+**Split contexts by update frequency:**
 ```jsx
-<ThemeProvider>
-  <App />
+// Fast-changing UI state and slow-changing user data in separate contexts
+<ThemeProvider>      {/* changes rarely */}
+  <UserProvider>     {/* changes on login/logout */}
+    <App />
+  </UserProvider>
 </ThemeProvider>
 ```
 
-**When to use Context vs props:**
-- Context: theme, current user, language/locale, auth state — truly global data
-- Props: most other things — keeps components explicit and reusable
-- Context is not a state management replacement (consider Zustand or Redux for complex state)
-
-**Performance note:** every component that calls `useContext` re-renders when the context value changes. Split contexts by update frequency to minimize re-renders.
+**When NOT to use Context:** don't reach for it for every shared state. For frequently-updating values (e.g. mouse position, form state), consider Zustand or other state managers.
 
 ## Custom Hooks
 
-Custom hooks let you extract and reuse stateful logic. Any function that starts with `use` and calls built-in hooks is a custom hook.
+A custom hook is a function starting with `use` that calls other hooks. It lets you extract and share stateful logic without changing component structure.
 
-**Example — `useFetch`:**
+**`useFetch` — data fetching:**
 ```jsx
 function useFetch(url) {
-  const [data,    setData]    = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState(null)
+  const [state, dispatch] = useReducer(
+    (s, a) => ({ ...s, ...a }),
+    { data: null, loading: true, error: null }
+  )
 
   useEffect(() => {
-    setLoading(true)
+    let cancelled = false
+    dispatch({ loading: true, error: null })
+
     fetch(url)
-      .then(r => r.json())
-      .then(setData)
-      .catch(setError)
-      .finally(() => setLoading(false))
+      .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json() })
+      .then(data => { if (!cancelled) dispatch({ data, loading: false }) })
+      .catch(error => { if (!cancelled) dispatch({ error, loading: false }) })
+
+    return () => { cancelled = true }
   }, [url])
 
-  return { data, loading, error }
-}
-
-// Usage
-function Posts() {
-  const { data, loading, error } = useFetch('/api/posts')
-  if (loading) return <p>Loading…</p>
-  if (error)   return <p>Error: {error.message}</p>
-  return <ul>{data.map(p => <li key={p.id}>{p.title}</li>)}</ul>
+  return state
 }
 ```
 
-**Benefits:**
-- Share logic between components without changing their structure
-- Keeps components lean — business logic lives in the hook
-- Easy to test in isolation
+**`useDebounce` — delay a rapidly-changing value:**
+```jsx
+function useDebounce(value, delay = 300) {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(id)
+  }, [value, delay])
+  return debounced
+}
 
-**Other common custom hooks:** `useLocalStorage`, `useDebounce`, `useOnClickOutside`, `useWindowSize`, `usePrevious`.
+// Usage — only triggers search API after user stops typing 300ms
+const debouncedQuery = useDebounce(query)
+useEffect(() => { search(debouncedQuery) }, [debouncedQuery])
+```
+
+**`useLocalStorage` — persistent state:**
+```jsx
+function useLocalStorage(key, initial) {
+  const [value, setValue] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(key)) ?? initial }
+    catch { return initial }
+  })
+  const set = v => { setValue(v); localStorage.setItem(key, JSON.stringify(v)) }
+  return [value, set]
+}
+```
 
 **Rules of Hooks** (apply to custom hooks too):
-- Only call hooks at the top level — never inside conditions, loops, or nested functions
-- Only call hooks from React functions (components or other custom hooks)
+- Only call hooks at the **top level** — never inside conditions, loops, or nested functions
+- Only call hooks from **React functions** (components or custom hooks)
+
+## Component Lifecycle & Reconciliation
+
+**Lifecycle in function components maps to hooks:**
+
+| Class lifecycle | Hook equivalent |
+|---|---|
+| `componentDidMount` | `useEffect(() => { ... }, [])` |
+| `componentDidUpdate` | `useEffect(() => { ... }, [dep])` |
+| `componentWillUnmount` | `useEffect(() => { return () => cleanup() }, [])` |
+| `shouldComponentUpdate` | `React.memo` |
+
+**The Reconciliation process:**
+
+React keeps a virtual DOM — a lightweight JS copy of the real DOM. On each render:
+1. React runs your component function and builds a new virtual DOM tree
+2. It **diffs** the new tree against the previous one (reconciliation)
+3. It computes the minimal set of real DOM changes needed
+4. It applies only those changes (commit phase)
+
+**The `key` prop and reconciliation:**
+```jsx
+// Without key — React reuses the same input element when list changes
+// causing stale values in uncontrolled inputs
+{users.map(u => <input defaultValue={u.name} />)}  // Bug!
+
+// With key — React destroys and recreates the element when key changes
+{users.map(u => <input key={u.id} defaultValue={u.name} />)}  // Correct
+```
+
+**Render phases:**
+- **Render phase** (pure, may be interrupted): React calls your component function
+- **Commit phase** (synchronous, DOM is updated): `useLayoutEffect` runs here
+- **After paint**: `useEffect` runs here
+
+**`useLayoutEffect`** — like `useEffect` but fires synchronously after DOM mutations, before the browser paints. Use it to read DOM measurements (e.g. element size) to avoid visual flicker:
+```jsx
+useLayoutEffect(() => {
+  const { height } = ref.current.getBoundingClientRect()
+  setHeight(height)  // applied before paint — no flicker
+}, [])
+```
+
+**Strict Mode** — in development, React intentionally double-invokes render functions and effects to surface bugs from impure renders or missing cleanups:
+```jsx
+<React.StrictMode><App /></React.StrictMode>
+```
 
 ## Performance Optimization
 
-React re-renders a component whenever its state or props change. For most apps this is fast enough, but large trees or expensive computations may need optimization.
+**The golden rule:** profile first with React DevTools Profiler, then optimize. Premature optimization adds complexity for no gain.
 
-**`React.memo` — skip re-render if props haven't changed:**
+**`React.memo` — skip re-render when props are unchanged:**
 ```jsx
-const ExpensiveList = React.memo(function ExpensiveList({ items }) {
-  return <ul>{items.map(i => <li key={i.id}>{i.name}</li>)}</ul>
+const UserRow = React.memo(function UserRow({ user, onDelete }) {
+  console.log('rendered:', user.name)
+  return <li>{user.name} <button onClick={() => onDelete(user.id)}>×</button></li>
 })
+// Only re-renders if user or onDelete reference changes
 ```
 
-**`useMemo` — cache an expensive computation:**
+**`useCallback` — stable function reference:**
 ```jsx
-const sortedItems = useMemo(
-  () => [...items].sort((a, b) => a.name.localeCompare(b.name)),
-  [items]  // recompute only when items changes
+// Without useCallback, handleDelete is a new function on every render
+// causing UserRow to re-render even with React.memo
+const handleDelete = useCallback((id) => {
+  setUsers(prev => prev.filter(u => u.id !== id))
+}, []) // no deps — function never changes
+```
+
+**`useMemo` — cache expensive computation:**
+```jsx
+const filteredUsers = useMemo(
+  () => users.filter(u => u.name.toLowerCase().includes(query.toLowerCase())),
+  [users, query]  // recompute only when users or query changes
 )
 ```
 
-**`useCallback` — stable function reference (prevents child re-renders):**
-```jsx
-const handleDelete = useCallback((id) => {
-  setItems(prev => prev.filter(i => i.id !== id))
-}, [])  // empty deps — function never changes
-```
-
-**Code splitting with lazy loading:**
+**Code splitting — lazy load heavy components:**
 ```jsx
 import { lazy, Suspense } from 'react'
 
-const HeavyChart = lazy(() => import('./HeavyChart'))
+const HeavyChart   = lazy(() => import('./HeavyChart'))
+const AdminPanel   = lazy(() => import('./AdminPanel'))
 
-<Suspense fallback={<p>Loading chart…</p>}>
+<Suspense fallback={<Spinner />}>
   <HeavyChart />
 </Suspense>
 ```
 
-**Practical advice:**
-- Profile first with React DevTools Profiler before optimizing
-- `React.memo` is only useful when the child is actually expensive to render
-- Overusing `useMemo`/`useCallback` adds complexity without benefit for cheap operations
+**Virtualization — render only visible rows:**
+
+For lists with thousands of items, use `react-window` or `react-virtual` to render only what's in the viewport. Rendering 10,000 `<li>` elements at once is a common performance killer.
+
+**Avoid these common re-render causes:**
+```jsx
+// Bad — new object on every render defeats React.memo
+<Component options={{ theme: 'dark' }} />
+
+// Good — stable reference
+const options = useMemo(() => ({ theme: 'dark' }), [])
+<Component options={options} />
+```
+
+## Error Boundaries
+
+Error boundaries are React components that catch JavaScript errors anywhere in their child component tree and display a fallback UI instead of crashing the whole app.
+
+**Error boundaries only work as class components** (no hook equivalent yet):
+```jsx
+class ErrorBoundary extends React.Component {
+  state = { hasError: false, error: null }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error }
+  }
+
+  componentDidCatch(error, info) {
+    // Log to an error reporting service (Sentry, Datadog, etc.)
+    console.error('Caught by ErrorBoundary:', error, info.componentStack)
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback || <h2>Something went wrong.</h2>
+    }
+    return this.props.children
+  }
+}
+```
+
+**Usage — wrap sections you want to isolate:**
+```jsx
+<ErrorBoundary fallback={<p>Chart failed to load.</p>}>
+  <RevenueChart />
+</ErrorBoundary>
+
+<ErrorBoundary fallback={<p>Comments unavailable.</p>}>
+  <CommentSection />
+</ErrorBoundary>
+```
+
+**What error boundaries do NOT catch:**
+- Errors in event handlers (use regular try/catch there)
+- Async errors (`setTimeout`, `fetch` rejections)
+- Errors in the boundary itself
+
+**`react-error-boundary` package** — a well-maintained library that adds hooks and reset functionality:
+```jsx
+import { ErrorBoundary } from 'react-error-boundary'
+
+function Fallback({ error, resetErrorBoundary }) {
+  return (
+    <div>
+      <p>Error: {error.message}</p>
+      <button onClick={resetErrorBoundary}>Try again</button>
+    </div>
+  )
+}
+
+<ErrorBoundary FallbackComponent={Fallback} onReset={() => refetch()}>
+  <DataTable />
+</ErrorBoundary>
+```
 
 ## Forms & Controlled Components
 
-A **controlled component** is an input whose value is driven by React state, making the component the single source of truth.
+A **controlled component** is an input whose value is driven by React state — React is the single source of truth.
 
-**Controlled input:**
+**Controlled form pattern:**
 ```jsx
-function LoginForm() {
-  const [form, setForm] = useState({ email: '', password: '' })
+function RegisterForm() {
+  const [form, setForm]     = useState({ name: '', email: '', password: '' })
+  const [errors, setErrors] = useState({})
+  const [loading, setLoading] = useState(false)
 
-  const handleChange = e => {
-    const { name, value } = e.target
-    setForm(prev => ({ ...prev, [name]: value }))
+  const handleChange = ({ target: { name, value, type, checked } }) => {
+    setForm(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }))
   }
 
-  const handleSubmit = e => {
-    e.preventDefault()  // prevent page reload
-    console.log(form)
+  const validate = () => {
+    const e = {}
+    if (!form.name)                  e.name = 'Required'
+    if (!/\S+@\S+/.test(form.email)) e.email = 'Invalid email'
+    if (form.password.length < 8)    e.password = 'Min 8 characters'
+    return e
+  }
+
+  const handleSubmit = async e => {
+    e.preventDefault()
+    const e2 = validate()
+    if (Object.keys(e2).length) return setErrors(e2)
+
+    setLoading(true)
+    await registerUser(form)
+    setLoading(false)
   }
 
   return (
     <form onSubmit={handleSubmit}>
+      <input name="name"     value={form.name}     onChange={handleChange} />
+      {errors.name && <span>{errors.name}</span>}
+
       <input name="email"    value={form.email}    onChange={handleChange} type="email" />
+      {errors.email && <span>{errors.email}</span>}
+
       <input name="password" value={form.password} onChange={handleChange} type="password" />
-      <button type="submit">Login</button>
+      {errors.password && <span>{errors.password}</span>}
+
+      <button disabled={loading}>{loading ? 'Submitting…' : 'Register'}</button>
     </form>
   )
 }
 ```
 
-**Checkboxes and selects:**
+**Select, checkbox, textarea:**
 ```jsx
-// Checkbox — use checked, not value
-<input type="checkbox" name="agree" checked={form.agree} onChange={handleChange} />
-// In handler: value = e.target.type === 'checkbox' ? e.target.checked : e.target.value
-
 // Select
 <select name="role" value={form.role} onChange={handleChange}>
+  <option value="">Choose…</option>
   <option value="user">User</option>
   <option value="admin">Admin</option>
 </select>
+
+// Checkbox — use checked not value
+<input type="checkbox" name="agree" checked={form.agree} onChange={handleChange} />
+
+// Textarea — works like input
+<textarea name="bio" value={form.bio} onChange={handleChange} rows={4} />
 ```
 
-**Uncontrolled inputs** use `ref` instead of state — useful for file inputs or when integrating with non-React code:
+**Uncontrolled inputs** use `useRef` — useful for file inputs:
 ```jsx
 const fileRef = useRef()
 <input type="file" ref={fileRef} />
-// Access: fileRef.current.files[0]
+// Read: fileRef.current.files[0]
 ```
 
-For complex forms with validation consider libraries like **React Hook Form** (minimal re-renders) or **Formik**.
+For complex forms consider **React Hook Form** — minimal re-renders, built-in validation, great DX.
+
+## Component Patterns
+
+Design patterns for building flexible, reusable React components.
+
+### Higher-Order Component (HOC)
+
+A function that takes a component and returns an enhanced version of it:
+```jsx
+function withAuth(Component) {
+  return function AuthenticatedComponent(props) {
+    const { user } = useAuth()
+    if (!user) return <Navigate to="/login" />
+    return <Component {...props} user={user} />
+  }
+}
+
+const ProtectedDashboard = withAuth(Dashboard)
+```
+
+### Render Props
+
+Pass a function as a prop to share logic with flexible rendering:
+```jsx
+function MouseTracker({ render }) {
+  const [pos, setPos] = useState({ x: 0, y: 0 })
+  return (
+    <div onMouseMove={e => setPos({ x: e.clientX, y: e.clientY })}>
+      {render(pos)}
+    </div>
+  )
+}
+
+// Usage
+<MouseTracker render={({ x, y }) => <p>Mouse: {x}, {y}</p>} />
+```
+
+> Modern alternative: extract to a custom hook (`useMousePosition`).
+
+### Compound Components
+
+Components that share implicit state and work together as a unit:
+```jsx
+const TabsContext = createContext(null)
+
+function Tabs({ children, defaultTab }) {
+  const [active, setActive] = useState(defaultTab)
+  return <TabsContext.Provider value={{ active, setActive }}>{children}</TabsContext.Provider>
+}
+
+Tabs.List = function TabList({ children }) {
+  return <div className="tab-list">{children}</div>
+}
+
+Tabs.Tab = function Tab({ value, children }) {
+  const { active, setActive } = useContext(TabsContext)
+  return (
+    <button className={active === value ? 'active' : ''} onClick={() => setActive(value)}>
+      {children}
+    </button>
+  )
+}
+
+Tabs.Panel = function Panel({ value, children }) {
+  const { active } = useContext(TabsContext)
+  return active === value ? <div>{children}</div> : null
+}
+
+// Usage — clean, expressive API
+<Tabs defaultTab="profile">
+  <Tabs.List>
+    <Tabs.Tab value="profile">Profile</Tabs.Tab>
+    <Tabs.Tab value="settings">Settings</Tabs.Tab>
+  </Tabs.List>
+  <Tabs.Panel value="profile"><ProfileForm /></Tabs.Panel>
+  <Tabs.Panel value="settings"><SettingsForm /></Tabs.Panel>
+</Tabs>
+```
+
+### Controlled vs Uncontrolled Components (pattern)
+
+Design your reusable components to work both ways:
+```jsx
+function Toggle({ checked, defaultChecked, onChange }) {
+  // If checked prop provided → controlled (parent owns state)
+  // If defaultChecked provided → uncontrolled (component owns state)
+  const [internal, setInternal] = useState(defaultChecked ?? false)
+  const isControlled = checked !== undefined
+  const value = isControlled ? checked : internal
+
+  const handleChange = () => {
+    if (!isControlled) setInternal(v => !v)
+    onChange?.(!value)
+  }
+
+  return <button onClick={handleChange}>{value ? 'ON' : 'OFF'}</button>
+}
+```
