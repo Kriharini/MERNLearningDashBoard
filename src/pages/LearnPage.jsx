@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import Markdown from 'react-markdown'
 import { TECHS } from '../data/mernData'
 import { useLocalStorage } from '../hooks/useLocalStorage'
@@ -25,10 +25,29 @@ export default function LearnPage({ id }) {
     `mern-${id}-progress`,
     new Array(topics.length).fill(false)
   )
-  const [expanded, setExpanded] = useState(null)
+  const [expanded,   setExpanded]   = useState(null)
+  const [askInput,   setAskInput]   = useState('')
+  const [askLoading, setAskLoading] = useState(false)
+  const [askAnswer,  setAskAnswer]  = useState(null)
+  const [askError,   setAskError]   = useState(null)
+  const inputRef = useRef(null)
 
-  const safeChecked  = topics.map((_, i) => !!checked[i])
-  const contentMap   = useMemo(() => parseTopicContent(content), [content])
+  const safeChecked = topics.map((_, i) => !!checked[i])
+  const contentMap  = useMemo(() => parseTopicContent(content), [content])
+
+  // Reset Ask AI state when a different topic is opened
+  useEffect(() => {
+    setAskInput('')
+    setAskAnswer(null)
+    setAskError(null)
+  }, [expanded])
+
+  // Focus input when topic expands
+  useEffect(() => {
+    if (expanded !== null && inputRef.current) {
+      setTimeout(() => inputRef.current?.focus(), 50)
+    }
+  }, [expanded])
 
   const toggle = i => {
     const next = [...safeChecked]
@@ -37,6 +56,27 @@ export default function LearnPage({ id }) {
   }
 
   const toggleExpand = i => setExpanded(expanded === i ? null : i)
+
+  const handleAsk = async (topic) => {
+    if (!askInput.trim() || askLoading) return
+    setAskLoading(true)
+    setAskAnswer(null)
+    setAskError(null)
+    try {
+      const res = await fetch('http://localhost:3001/api/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: askInput, topic, tech: label })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setAskAnswer(data.answer)
+    } catch (err) {
+      setAskError(err.message || 'Something went wrong. Is the server running?')
+    } finally {
+      setAskLoading(false)
+    }
+  }
 
   const completed = safeChecked.filter(Boolean).length
   const pct = Math.round((completed / topics.length) * 100)
@@ -76,9 +116,40 @@ export default function LearnPage({ id }) {
                   </button>
                 )}
               </div>
+
               {expanded === i && contentMap[topic] && (
                 <div className="topic-content">
                   <Markdown>{contentMap[topic]}</Markdown>
+
+                  <div className="ask-ai">
+                    <p className="ask-ai-label">Ask AI about this topic</p>
+                    <div className="ask-ai-row">
+                      <input
+                        ref={inputRef}
+                        className="ask-ai-input"
+                        type="text"
+                        placeholder={`Ask anything about ${topic}…`}
+                        value={askInput}
+                        onChange={e => setAskInput(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleAsk(topic)}
+                        disabled={askLoading}
+                      />
+                      <button
+                        className="ask-ai-btn"
+                        onClick={() => handleAsk(topic)}
+                        disabled={askLoading || !askInput.trim()}
+                        style={{ background: color }}
+                      >
+                        {askLoading ? '…' : 'Ask'}
+                      </button>
+                    </div>
+                    {askError && <p className="ask-ai-error">{askError}</p>}
+                    {askAnswer && (
+                      <div className="ask-ai-answer">
+                        <Markdown>{askAnswer}</Markdown>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </li>

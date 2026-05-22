@@ -192,6 +192,91 @@
 }
 .topic-content strong { color: var(--text-h); }
 
+/* ── Ask AI ──────────────────────────────────────────── */
+.ask-ai {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.ask-ai-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text);
+  margin: 0 0 10px;
+}
+.ask-ai-row {
+  display: flex;
+  gap: 8px;
+}
+.ask-ai-input {
+  flex: 1;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 14px;
+  background: var(--card-bg);
+  color: var(--text-h);
+  outline: none;
+  transition: border-color 0.2s;
+}
+.ask-ai-input:focus { border-color: var(--accent); }
+.ask-ai-input:disabled { opacity: 0.6; }
+.ask-ai-btn {
+  padding: 9px 18px;
+  border: none;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: #000;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  flex-shrink: 0;
+}
+.ask-ai-btn:hover:not(:disabled) { opacity: 0.85; }
+.ask-ai-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.ask-ai-error {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: #ef4444;
+}
+.ask-ai-answer {
+  margin-top: 14px;
+  padding: 14px 16px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--text-h);
+}
+.ask-ai-answer p  { margin: 0 0 10px; }
+.ask-ai-answer p:last-child { margin-bottom: 0; }
+.ask-ai-answer pre {
+  background: var(--accent-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+.ask-ai-answer code {
+  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 13px;
+}
+.ask-ai-answer p > code, .ask-ai-answer li > code {
+  background: var(--accent-bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 12.5px;
+}
+.ask-ai-answer ul, .ask-ai-answer ol { padding-left: 20px; margin: 0 0 10px; }
+.ask-ai-answer li { margin-bottom: 4px; }
+
 .resources-list { list-style: none; padding: 0; margin: 16px 0 0; display: flex; flex-direction: column; gap: 4px; }
 .resources-list a { color: var(--accent); text-decoration: none; font-size: 15px; padding: 6px 0; display: inline-block; }
 .resources-list a:hover { text-decoration: underline; }
