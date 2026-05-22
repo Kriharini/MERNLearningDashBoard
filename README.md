@@ -1,16 +1,75 @@
-# React + Vite
+# MERN Learning Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A personal learning tracker for the MERN stack — MongoDB, Express, React, and Node.js.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Topic checklists** — track progress through 8 topics per technology with a visual progress bar
+- **Expandable content** — click any topic to read a concise explanation with code examples (rendered from Markdown)
+- **Interview prep** — 20 Q&A cards filterable by technology
+- **Notes editor** — multi-note editor with auto-save to localStorage
+- **Light / dark mode** — follows system preference via `prefers-color-scheme`
+- **Progress persistence** — all progress saved to localStorage, survives page reloads
 
-## React Compiler
+## Tech stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| Tool | Version | Purpose |
+|---|---|---|
+| React | 19 | UI |
+| Vite | 8 | Build tool & dev server |
+| React Router | 7 | Client-side routing |
+| react-markdown | 9 | Render topic content from `.md` files |
 
-## Expanding the ESLint configuration
+No backend. No database. Frontend-only.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Getting started
+
+```bash
+# Install dependencies
+npm install
+
+# Start dev server
+npm run dev       # http://localhost:5173
+
+# Production build
+npm run build
+
+# Preview production build
+npm run preview
+```
+
+> **Windows / SSL note:** If you see `UNABLE_TO_VERIFY_LEAF_SIGNATURE`, run `npm config set strict-ssl false` first.
+
+## Project structure
+
+```
+src/
+├── data/
+│   ├── mernData.js        # Topic metadata and resource links
+│   ├── interviewData.js   # Interview Q&A
+│   └── content/           # Markdown files — one per tech
+│       ├── mongodb.md
+│       ├── express.md
+│       ├── react.md
+│       └── node.md
+├── hooks/
+│   └── useLocalStorage.js # Persistent state hook
+├── components/
+│   └── Sidebar.jsx
+├── pages/
+│   ├── Home.jsx
+│   ├── LearnPage.jsx      # Shared checklist + content viewer
+│   ├── Notes.jsx
+│   └── Interview.jsx
+├── App.jsx
+├── App.css                # All component styles
+└── index.css              # CSS variables + global reset
+```
+
+## Adding topic content
+
+Edit `src/data/content/<tech>.md`. Each `## Heading` must match the topic string in `mernData.js` exactly — that's how `LearnPage` maps content to the right topic.
+
+## License
+
+MIT
